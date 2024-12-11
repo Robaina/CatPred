@@ -1,7 +1,7 @@
 from typing import Callable, List, Union
 
 import numpy as np
-from rdkit import Chem, DataStructs
+from catpred.rdkit_module import Chem, DataStructs
 from rdkit.Chem import AllChem
 
 Molecule = Union[str, Chem.Mol]
@@ -13,13 +13,16 @@ FeaturesGenerator = Callable[[Molecule], np.ndarray]
 FEATURES_GENERATOR_REGISTRY = {}
 
 
-def register_features_generator(features_generator_name: str) -> Callable[[FeaturesGenerator], FeaturesGenerator]:
+def register_features_generator(
+    features_generator_name: str,
+) -> Callable[[FeaturesGenerator], FeaturesGenerator]:
     """
     Creates a decorator which registers a features generator in a global dictionary to enable access by name.
 
     :param features_generator_name: The name to use to access the features generator.
     :return: A decorator which will add a features generator to the registry using the specified name.
     """
+
     def decorator(features_generator: FeaturesGenerator) -> FeaturesGenerator:
         FEATURES_GENERATOR_REGISTRY[features_generator_name] = features_generator
         return features_generator
@@ -35,8 +38,10 @@ def get_features_generator(features_generator_name: str) -> FeaturesGenerator:
     :return: The desired features generator.
     """
     if features_generator_name not in FEATURES_GENERATOR_REGISTRY:
-        raise ValueError(f'Features generator "{features_generator_name}" could not be found. '
-                         f'If this generator relies on rdkit features, you may need to install descriptastorus.')
+        raise ValueError(
+            f'Features generator "{features_generator_name}" could not be found. '
+            f"If this generator relies on rdkit features, you may need to install descriptastorus."
+        )
 
     return FEATURES_GENERATOR_REGISTRY[features_generator_name]
 
@@ -50,10 +55,10 @@ MORGAN_RADIUS = 2
 MORGAN_NUM_BITS = 2048
 
 
-@register_features_generator('morgan')
-def morgan_binary_features_generator(mol: Molecule,
-                                     radius: int = MORGAN_RADIUS,
-                                     num_bits: int = MORGAN_NUM_BITS) -> np.ndarray:
+@register_features_generator("morgan")
+def morgan_binary_features_generator(
+    mol: Molecule, radius: int = MORGAN_RADIUS, num_bits: int = MORGAN_NUM_BITS
+) -> np.ndarray:
     """
     Generates a binary Morgan fingerprint for a molecule.
 
@@ -69,6 +74,7 @@ def morgan_binary_features_generator(mol: Molecule,
 
     return features
 
+
 # @register_features_generator('chemberta')
 # def chemberta_features_generator(mol: Molecule) -> np.ndarray:
 #     # If you want to use the SMILES string
@@ -79,14 +85,16 @@ def morgan_binary_features_generator(mol: Molecule,
 #     model.eval()
 #     for param in self.model.parameters():
 #         param.requires_grad = False
-            
+
 #     tokenizer = AutoTokenizer.from_pretrained(model_uri,use_fast=True)
 #     features = np.array([0, 0, 1])
 
 #     return features
 
 import ipdb
-@register_features_generator('morgan_diff_fp')
+
+
+@register_features_generator("morgan_diff_fp")
 def morgan_difference_features_generator(rxn: Reaction) -> np.ndarray:
     """
     Generates a difference Morgan fingerprint for a reaction.
@@ -98,16 +106,19 @@ def morgan_difference_features_generator(rxn: Reaction) -> np.ndarray:
     rxn = Chem.rdChemReactions.ReactionFromSmarts(rxn) if type(rxn) == str else rxn
     params = Chem.rdChemReactions.ReactionFingerprintParams()
     params.fpType = Chem.rdChemReactions.FingerprintType.MorganFP
-    features_vec = Chem.rdChemReactions.CreateDifferenceFingerprintForReaction(rxn, params)
+    features_vec = Chem.rdChemReactions.CreateDifferenceFingerprintForReaction(
+        rxn, params
+    )
     features = np.zeros((1,))
     DataStructs.ConvertToNumpyArray(features_vec, features)
 
-    return features/10.0
+    return features / 10.0
 
-@register_features_generator('morgan_count')
-def morgan_counts_features_generator(mol: Molecule,
-                                     radius: int = MORGAN_RADIUS,
-                                     num_bits: int = MORGAN_NUM_BITS) -> np.ndarray:
+
+@register_features_generator("morgan_count")
+def morgan_counts_features_generator(
+    mol: Molecule, radius: int = MORGAN_RADIUS, num_bits: int = MORGAN_NUM_BITS
+) -> np.ndarray:
     """
     Generates a counts-based Morgan fingerprint for a molecule.
 
@@ -127,7 +138,7 @@ def morgan_counts_features_generator(mol: Molecule,
 try:
     from descriptastorus.descriptors import rdDescriptors, rdNormalizedDescriptors
 
-    @register_features_generator('rdkit_2d')
+    @register_features_generator("rdkit_2d")
     def rdkit_2d_features_generator(mol: Molecule) -> np.ndarray:
         """
         Generates RDKit 2D features for a molecule.
@@ -141,7 +152,7 @@ try:
 
         return features
 
-    @register_features_generator('rdkit_2d_normalized')
+    @register_features_generator("rdkit_2d_normalized")
     def rdkit_2d_normalized_features_generator(mol: Molecule) -> np.ndarray:
         """
         Generates RDKit 2D normalized features for a molecule.
@@ -154,21 +165,26 @@ try:
         features = generator.process(smiles)[1:]
 
         return features
+
 except ImportError:
-    @register_features_generator('rdkit_2d')
+
+    @register_features_generator("rdkit_2d")
     def rdkit_2d_features_generator(mol: Molecule) -> np.ndarray:
         """Mock implementation raising an ImportError if descriptastorus cannot be imported."""
-        raise ImportError('Failed to import descriptastorus. Please install descriptastorus '
-                          '(https://github.com/bp-kelley/descriptastorus) to use RDKit 2D features.')
+        raise ImportError(
+            "Failed to import descriptastorus. Please install descriptastorus "
+            "(https://github.com/bp-kelley/descriptastorus) to use RDKit 2D features."
+        )
 
-    @register_features_generator('rdkit_2d_normalized')
+    @register_features_generator("rdkit_2d_normalized")
     def rdkit_2d_normalized_features_generator(mol: Molecule) -> np.ndarray:
         """Mock implementation raising an ImportError if descriptastorus cannot be imported."""
-        raise ImportError('Failed to import descriptastorus. Please install descriptastorus '
-                          '(https://github.com/bp-kelley/descriptastorus) to use RDKit 2D normalized features.')
+        raise ImportError(
+            "Failed to import descriptastorus. Please install descriptastorus "
+            "(https://github.com/bp-kelley/descriptastorus) to use RDKit 2D normalized features."
+        )
 
 
-        
 """
 Custom features generator template.
 

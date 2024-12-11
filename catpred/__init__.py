@@ -8,6 +8,6 @@ import catpred.args
 import catpred.constants
 import catpred.nn_utils
 import catpred.utils
-import catpred.rdkit
+import catpred.rdkit_module
 
 __version__ = "0.0.1"

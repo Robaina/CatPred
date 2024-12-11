@@ -1,10 +1,11 @@
-from rdkit import Chem
+from catpred.rdkit_module import Chem
 import numpy as np
+
 
 def make_mol(s: str, keep_h: bool, add_h: bool, keep_atom_map: bool):
     """
     Builds an RDKit molecule from a SMILES string.
-    
+
     :param s: SMILES string.
     :param keep_h: Boolean whether to keep hydrogens in the input smiles. This does not add hydrogens, it only keeps them if they are specified.
     :param add_h: Boolean whether to add hydrogens to the input smiles.

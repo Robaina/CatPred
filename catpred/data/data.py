@@ -5,13 +5,19 @@ from typing import Dict, Iterator, List, Optional, Union, Tuple
 
 import numpy as np
 from torch.utils.data import DataLoader, Dataset, Sampler
-from rdkit import Chem
+from catpred.rdkit_module import Chem
 
 from .scaler import StandardScaler, AtomBondScaler
 from catpred.features import get_features_generator
 from catpred.features import BatchMolGraph, MolGraph
-from catpred.features import is_explicit_h, is_reaction, is_adding_hs, is_mol, is_keeping_atom_map
-from catpred.rdkit import make_mol
+from catpred.features import (
+    is_explicit_h,
+    is_reaction,
+    is_adding_hs,
+    is_mol,
+    is_keeping_atom_map,
+)
+from catpred.rdkit_module import make_mol
 
 # Cache of graph featurizations
 CACHE_GRAPH = True
@@ -49,33 +55,37 @@ def set_cache_mol(cache_mol: bool) -> None:
     global CACHE_MOL
     CACHE_MOL = cache_mol
 
+
 import ipdb
+
 
 class MoleculeDatapoint:
     """A :class:`MoleculeDatapoint` contains a single molecule and its associated features and targets."""
 
-    def __init__(self,
-                 smiles: List[str],
-                 vocabulary: OrderedDict = None,
-                 protein_record = None,
-                 targets: List[Optional[float]] = None,
-                 atom_targets: List[Optional[float]] = None,
-                 bond_targets: List[Optional[float]] = None,
-                 row: OrderedDict = None,
-                 data_weight: float = None,
-                 gt_targets: List[bool] = None,
-                 lt_targets: List[bool] = None,
-                 features: np.ndarray = None,
-                 features_generator: List[str] = None,
-                 phase_features: List[float] = None,
-                 atom_features: np.ndarray = None,
-                 atom_descriptors: np.ndarray = None,
-                 bond_features: np.ndarray = None,
-                 bond_descriptors: np.ndarray = None,
-                 raw_constraints: np.ndarray = None,
-                 constraints: np.ndarray = None,
-                 overwrite_default_atom_features: bool = False,
-                 overwrite_default_bond_features: bool = False):
+    def __init__(
+        self,
+        smiles: List[str],
+        vocabulary: OrderedDict = None,
+        protein_record=None,
+        targets: List[Optional[float]] = None,
+        atom_targets: List[Optional[float]] = None,
+        bond_targets: List[Optional[float]] = None,
+        row: OrderedDict = None,
+        data_weight: float = None,
+        gt_targets: List[bool] = None,
+        lt_targets: List[bool] = None,
+        features: np.ndarray = None,
+        features_generator: List[str] = None,
+        phase_features: List[float] = None,
+        atom_features: np.ndarray = None,
+        atom_descriptors: np.ndarray = None,
+        bond_features: np.ndarray = None,
+        bond_descriptors: np.ndarray = None,
+        raw_constraints: np.ndarray = None,
+        constraints: np.ndarray = None,
+        overwrite_default_atom_features: bool = False,
+        overwrite_default_bond_features: bool = False,
+    ):
         """
         :param smiles: A list of the SMILES strings for the molecules.
         :param vocabulary: A dict of vocabulary of EC and Taxonomy categories
@@ -120,7 +130,9 @@ class MoleculeDatapoint:
         self.is_reaction_list = [is_reaction(x) for x in self.is_mol_list]
         self.is_explicit_h_list = [is_explicit_h(x) for x in self.is_mol_list]
         self.is_adding_hs_list = [is_adding_hs(x) for x in self.is_mol_list]
-        self.is_keeping_atom_map_list = [is_keeping_atom_map(x) for x in self.is_mol_list]
+        self.is_keeping_atom_map_list = [
+            is_keeping_atom_map(x) for x in self.is_mol_list
+        ]
 
         if data_weight is not None:
             self.data_weight = data_weight
@@ -145,64 +157,113 @@ class MoleculeDatapoint:
                         # for H2
                         elif m is not None and m.GetNumHeavyAtoms() == 0:
                             # not all features are equally long, so use methane as dummy molecule to determine length
-                            self.features.extend(np.zeros(len(features_generator(Chem.MolFromSmiles('C')))))
+                            self.features.extend(
+                                np.zeros(
+                                    len(features_generator(Chem.MolFromSmiles("C")))
+                                )
+                            )
                     else:
                         # ipdb.set_trace()
                         self.features.extend(features_generator(self.smiles[0]))
                         # if m[0] is not None and m[1] is not None and m[0].GetNumHeavyAtoms() > 0:
                         #     self.features.extend(features_generator(m[0]))
                         # elif m[0] is not None and m[1] is not None and m[0].GetNumHeavyAtoms() == 0:
-                        #     self.features.extend(np.zeros(len(features_generator(Chem.MolFromSmiles('C'))))) 
+                        #     self.features.extend(np.zeros(len(features_generator(Chem.MolFromSmiles('C')))))
 
             self.features = np.array(self.features)
 
         # Fix nans in features
         replace_token = 0
         if self.features is not None:
-            self.features = np.where(np.isnan(self.features), replace_token, self.features)
+            self.features = np.where(
+                np.isnan(self.features), replace_token, self.features
+            )
 
         # Fix nans in atom_descriptors
         if self.atom_descriptors is not None:
-            self.atom_descriptors = np.where(np.isnan(self.atom_descriptors), replace_token, self.atom_descriptors)
+            self.atom_descriptors = np.where(
+                np.isnan(self.atom_descriptors), replace_token, self.atom_descriptors
+            )
 
         # Fix nans in atom_features
         if self.atom_features is not None:
-            self.atom_features = np.where(np.isnan(self.atom_features), replace_token, self.atom_features)
+            self.atom_features = np.where(
+                np.isnan(self.atom_features), replace_token, self.atom_features
+            )
 
         # Fix nans in bond_descriptors
         if self.bond_descriptors is not None:
-            self.bond_descriptors = np.where(np.isnan(self.bond_descriptors), replace_token, self.bond_descriptors)
+            self.bond_descriptors = np.where(
+                np.isnan(self.bond_descriptors), replace_token, self.bond_descriptors
+            )
 
         # Fix nans in bond_features
         if self.bond_features is not None:
-            self.bond_features = np.where(np.isnan(self.bond_features), replace_token, self.bond_features)
+            self.bond_features = np.where(
+                np.isnan(self.bond_features), replace_token, self.bond_features
+            )
 
         # Save a copy of the raw features and targets to enable different scaling later on
-        self.raw_features, self.raw_targets, self.raw_atom_targets, self.raw_bond_targets = \
-            self.features, self.targets, self.atom_targets, self.bond_targets
-        self.raw_atom_descriptors, self.raw_atom_features, self.raw_bond_descriptors, self.raw_bond_features = \
-            self.atom_descriptors, self.atom_features, self.bond_descriptors, self.bond_features
-        
+        (
+            self.raw_features,
+            self.raw_targets,
+            self.raw_atom_targets,
+            self.raw_bond_targets,
+        ) = (self.features, self.targets, self.atom_targets, self.bond_targets)
+        (
+            self.raw_atom_descriptors,
+            self.raw_atom_features,
+            self.raw_bond_descriptors,
+            self.raw_bond_features,
+        ) = (
+            self.atom_descriptors,
+            self.atom_features,
+            self.bond_descriptors,
+            self.bond_features,
+        )
+
         self.ec_features = []
         self.tax_features = []
-        
+
         if not vocabulary is None:
-            ec_words = ['ec1','ec2','ec3','ec']
-            tax_words = ['superkingdom','phylum','class','order','family','genus','species']
+            ec_words = ["ec1", "ec2", "ec3", "ec"]
+            tax_words = [
+                "superkingdom",
+                "phylum",
+                "class",
+                "order",
+                "family",
+                "genus",
+                "species",
+            ]
             for word in ec_words:
                 now = str(row[word])
-                inte = int(self.vocabulary[word][now]) if now in self.vocabulary[word] else -1
+                inte = (
+                    int(self.vocabulary[word][now])
+                    if now in self.vocabulary[word]
+                    else -1
+                )
                 self.ec_features.append(inte)
 
             for word in tax_words:
                 now = str(row[word])
-                inte = int(self.vocabulary[word][now]) if now in self.vocabulary[word] else -1
+                inte = (
+                    int(self.vocabulary[word][now])
+                    if now in self.vocabulary[word]
+                    else -1
+                )
                 self.tax_features.append(inte)
-            
+
     @property
     def mol(self) -> List[Union[Chem.Mol, Tuple[Chem.Mol, Chem.Mol]]]:
         """Gets the corresponding list of RDKit molecules for the corresponding SMILES list."""
-        mol = make_mols(self.smiles, self.is_reaction_list, self.is_explicit_h_list, self.is_adding_hs_list, self.is_keeping_atom_map_list)
+        mol = make_mols(
+            self.smiles,
+            self.is_reaction_list,
+            self.is_explicit_h_list,
+            self.is_adding_hs_list,
+            self.is_keeping_atom_map_list,
+        )
         if cache_mol():
             for s, m in zip(self.smiles, mol):
                 SMILES_TO_MOL[s] = m
@@ -243,7 +304,11 @@ class MoleculeDatapoint:
 
         :return: A list of bond types for each molecule.
         """
-        return [[b.GetBondTypeAsDouble() for b in self.mol[i].GetBonds()] for i in range(self.number_of_molecules)]
+        return [
+            [b.GetBondTypeAsDouble() for b in self.mol[i].GetBonds()]
+            for i in range(self.number_of_molecules)
+        ]
+
     @property
     def max_molwt(self) -> float:
         """
@@ -299,7 +364,11 @@ class MoleculeDatapoint:
 
         :param features: A 1D numpy array of extra features for the molecule.
         """
-        self.features = np.append(self.features, features) if self.features is not None else features
+        self.features = (
+            np.append(self.features, features)
+            if self.features is not None
+            else features
+        )
 
     def num_tasks(self) -> int:
         """
@@ -319,10 +388,23 @@ class MoleculeDatapoint:
 
     def reset_features_and_targets(self) -> None:
         """Resets the features (atom, bond, and molecule) and targets to their raw values."""
-        self.features, self.targets, self.atom_targets, self.bond_targets = \
-            self.raw_features, self.raw_targets, self.raw_atom_targets, self.raw_bond_targets
-        self.atom_descriptors, self.atom_features, self.bond_descriptors, self.bond_features = \
-            self.raw_atom_descriptors, self.raw_atom_features, self.raw_bond_descriptors, self.raw_bond_features
+        self.features, self.targets, self.atom_targets, self.bond_targets = (
+            self.raw_features,
+            self.raw_targets,
+            self.raw_atom_targets,
+            self.raw_bond_targets,
+        )
+        (
+            self.atom_descriptors,
+            self.atom_features,
+            self.bond_descriptors,
+            self.bond_features,
+        ) = (
+            self.raw_atom_descriptors,
+            self.raw_atom_features,
+            self.raw_bond_descriptors,
+            self.raw_bond_features,
+        )
 
 
 class MoleculeDataset(Dataset):
@@ -339,7 +421,7 @@ class MoleculeDataset(Dataset):
     def ec_features(self) -> List[List[int]]:
         """
         Returns a list containing the list of ec_featurers associated with each :class:`MoleculeDatapoint`.
-        
+
         :return: A list of lists of ec_features
         """
         return [d.ec_features for d in self._data]
@@ -347,11 +429,11 @@ class MoleculeDataset(Dataset):
     def tax_features(self) -> List[List[int]]:
         """
         Returns a list containing the list of tax_featurers associated with each :class:`MoleculeDatapoint`.
-        
+
         :return: A list of lists of tax_features
         """
         return [d.tax_features for d in self._data]
-    
+
     def smiles(self, flatten: bool = False) -> Union[List[str], List[List[str]]]:
         """
         Returns a list containing the SMILES list associated with each :class:`MoleculeDatapoint`.
@@ -364,7 +446,12 @@ class MoleculeDataset(Dataset):
 
         return [d.smiles for d in self._data]
 
-    def mols(self, flatten: bool = False) -> Union[List[Chem.Mol], List[List[Chem.Mol]], List[Tuple[Chem.Mol, Chem.Mol]], List[List[Tuple[Chem.Mol, Chem.Mol]]]]:
+    def mols(self, flatten: bool = False) -> Union[
+        List[Chem.Mol],
+        List[List[Chem.Mol]],
+        List[Tuple[Chem.Mol, Chem.Mol]],
+        List[List[Tuple[Chem.Mol, Chem.Mol]]],
+    ]:
         """
         Returns a list of the RDKit molecules associated with each :class:`MoleculeDatapoint`.
 
@@ -440,7 +527,7 @@ class MoleculeDataset(Dataset):
         if self._batch_graph is None:
             self._batch_graph = []
 
-            embeds = []            
+            embeds = []
             mol_graphs = []
             protein_record_list = []
             for d in self._data:
@@ -449,21 +536,32 @@ class MoleculeDataset(Dataset):
                     if s in SMILES_TO_GRAPH:
                         mol_graph = SMILES_TO_GRAPH[s]
                     else:
-                        if len(d.smiles) > 1 and (d.atom_features is not None or d.bond_features is not None):
-                            raise NotImplementedError('Atom descriptors are currently only supported with one molecule '
-                                                      'per input (i.e., number_of_molecules = 1).')
+                        if len(d.smiles) > 1 and (
+                            d.atom_features is not None or d.bond_features is not None
+                        ):
+                            raise NotImplementedError(
+                                "Atom descriptors are currently only supported with one molecule "
+                                "per input (i.e., number_of_molecules = 1)."
+                            )
 
-                        mol_graph = MolGraph(m, d.atom_features, d.bond_features,
-                                             overwrite_default_atom_features=d.overwrite_default_atom_features,
-                                             overwrite_default_bond_features=d.overwrite_default_bond_features)
+                        mol_graph = MolGraph(
+                            m,
+                            d.atom_features,
+                            d.bond_features,
+                            overwrite_default_atom_features=d.overwrite_default_atom_features,
+                            overwrite_default_bond_features=d.overwrite_default_bond_features,
+                        )
                         if cache_graph():
                             SMILES_TO_GRAPH[s] = mol_graph
                     mol_graphs_list.append(mol_graph)
                 mol_graphs.append(mol_graphs_list)
                 protein_record_list.append(d.protein_record)
-                embeds.append(d.ec_features+d.tax_features)
-                
-            self._batch_graph = [BatchMolGraph([g[i] for g in mol_graphs],embeds, protein_record_list) for i in range(len(mol_graphs[0]))]
+                embeds.append(d.ec_features + d.tax_features)
+
+            self._batch_graph = [
+                BatchMolGraph([g[i] for g in mol_graphs], embeds, protein_record_list)
+                for i in range(len(mol_graphs[0]))
+            ]
 
         return self._batch_graph
 
@@ -543,7 +641,7 @@ class MoleculeDataset(Dataset):
         """
         constraints = []
         for d in self._data:
-            if d.constraints is None :
+            if d.constraints is None:
                 natom_targets = len(d.atom_targets) if d.atom_targets is not None else 0
                 nbond_targets = len(d.bond_targets) if d.bond_targets is not None else 0
                 ntargets = natom_targets + nbond_targets
@@ -556,8 +654,8 @@ class MoleculeDataset(Dataset):
         """
         Returns the loss weighting associated with each datapoint.
         """
-        if not hasattr(self._data[0], 'data_weight'):
-            return [1. for d in self._data]
+        if not hasattr(self._data[0], "data_weight"):
+            return [1.0 for d in self._data]
 
         return [d.data_weight for d in self._data]
 
@@ -570,8 +668,8 @@ class MoleculeDataset(Dataset):
         atom_bond_data_weights = [[] for _ in targets[0]]
         for i, tb in enumerate(targets):
             weight = data_weights[i]
-            for j, x in enumerate(tb): 
-                atom_bond_data_weights[j] += [1. * weight] * len(x)
+            for j, x in enumerate(tb):
+                atom_bond_data_weights[j] += [1.0 * weight] * len(x)
 
         return atom_bond_data_weights
 
@@ -582,7 +680,7 @@ class MoleculeDataset(Dataset):
         :return: A list of lists of floats (or None) containing the targets.
         """
         return [d.targets for d in self._data]
-    
+
     def mask(self) -> List[List[bool]]:
         """
         Returns whether the targets associated with each molecule and task are present.
@@ -603,10 +701,10 @@ class MoleculeDataset(Dataset):
     def gt_targets(self) -> List[np.ndarray]:
         """
         Returns indications of whether the targets associated with each molecule are greater-than inequalities.
-        
+
         :return: A list of lists of booleans indicating whether the targets in those positions are greater-than inequality targets.
         """
-        if not hasattr(self._data[0], 'gt_targets'):
+        if not hasattr(self._data[0], "gt_targets"):
             return None
 
         return [d.gt_targets for d in self._data]
@@ -614,10 +712,10 @@ class MoleculeDataset(Dataset):
     def lt_targets(self) -> List[np.ndarray]:
         """
         Returns indications of whether the targets associated with each molecule are less-than inequalities.
-        
+
         :return: A list of lists of booleans indicating whether the targets in those positions are less-than inequality targets.
         """
-        if not hasattr(self._data[0], 'lt_targets'):
+        if not hasattr(self._data[0], "lt_targets"):
             return None
 
         return [d.lt_targets for d in self._data]
@@ -636,7 +734,11 @@ class MoleculeDataset(Dataset):
 
         :return: The size of the additional features vector.
         """
-        return len(self._data[0].features) if len(self._data) > 0 and self._data[0].features is not None else None
+        return (
+            len(self._data[0].features)
+            if len(self._data) > 0 and self._data[0].features is not None
+            else None
+        )
 
     def atom_descriptors_size(self) -> int:
         """
@@ -644,8 +746,11 @@ class MoleculeDataset(Dataset):
 
         :return: The size of the additional atom descriptor vector.
         """
-        return len(self._data[0].atom_descriptors[0]) \
-            if len(self._data) > 0 and self._data[0].atom_descriptors is not None else None
+        return (
+            len(self._data[0].atom_descriptors[0])
+            if len(self._data) > 0 and self._data[0].atom_descriptors is not None
+            else None
+        )
 
     def atom_features_size(self) -> int:
         """
@@ -653,8 +758,11 @@ class MoleculeDataset(Dataset):
 
         :return: The size of the additional atom feature vector.
         """
-        return len(self._data[0].atom_features[0]) \
-            if len(self._data) > 0 and self._data[0].atom_features is not None else None
+        return (
+            len(self._data[0].atom_features[0])
+            if len(self._data) > 0 and self._data[0].atom_features is not None
+            else None
+        )
 
     def bond_descriptors_size(self) -> int:
         """
@@ -662,8 +770,11 @@ class MoleculeDataset(Dataset):
 
         :return: The size of the additional bond descriptor vector.
         """
-        return len(self._data[0].bond_descriptors[0]) \
-            if len(self._data) > 0 and self._data[0].bond_descriptors is not None else None
+        return (
+            len(self._data[0].bond_descriptors[0])
+            if len(self._data) > 0 and self._data[0].bond_descriptors is not None
+            else None
+        )
 
     def bond_features_size(self) -> int:
         """
@@ -671,11 +782,19 @@ class MoleculeDataset(Dataset):
 
         :return: The size of the additional bond feature vector.
         """
-        return len(self._data[0].bond_features[0]) \
-            if len(self._data) > 0 and self._data[0].bond_features is not None else None
+        return (
+            len(self._data[0].bond_features[0])
+            if len(self._data) > 0 and self._data[0].bond_features is not None
+            else None
+        )
 
-    def normalize_features(self, scaler: StandardScaler = None, replace_nan_token: int = 0,
-                           scale_atom_descriptors: bool = False, scale_bond_descriptors: bool = False) -> StandardScaler:
+    def normalize_features(
+        self,
+        scaler: StandardScaler = None,
+        replace_nan_token: int = 0,
+        scale_atom_descriptors: bool = False,
+        scale_bond_descriptors: bool = False,
+    ) -> StandardScaler:
         """
         Normalizes the features of the dataset using a :class:`~catpred.data.StandardScaler`.
 
@@ -696,8 +815,11 @@ class MoleculeDataset(Dataset):
                  is provided as a parameter, this is the same :class:`~catpred.data.StandardScaler`. Otherwise,
                  this is a new :class:`~catpred.data.StandardScaler` that has been fit on this dataset.
         """
-        if len(self._data) == 0 or \
-                (self._data[0].features is None and not scale_bond_descriptors and not scale_atom_descriptors):
+        if len(self._data) == 0 or (
+            self._data[0].features is None
+            and not scale_bond_descriptors
+            and not scale_atom_descriptors
+        ):
             return None
 
         if scaler is None:
@@ -772,9 +894,14 @@ class MoleculeDataset(Dataset):
         ).fit(targets)
         scaled_targets = scaler.transform(targets)
         for i in range(n_atom_targets):
-            scaled_targets[i] = np.split(np.array(scaled_targets[i]).flatten(), np.cumsum(np.array(n_atoms)))[:-1]
+            scaled_targets[i] = np.split(
+                np.array(scaled_targets[i]).flatten(), np.cumsum(np.array(n_atoms))
+            )[:-1]
         for i in range(n_bond_targets):
-            scaled_targets[i+n_atom_targets] = np.split(np.array(scaled_targets[i+n_atom_targets]).flatten(), np.cumsum(np.array(n_bonds)))[:-1]
+            scaled_targets[i + n_atom_targets] = np.split(
+                np.array(scaled_targets[i + n_atom_targets]).flatten(),
+                np.cumsum(np.array(n_bonds)),
+            )[:-1]
         scaled_targets = np.array(scaled_targets, dtype=object).T
         self.set_targets(scaled_targets)
 
@@ -822,11 +949,13 @@ class MoleculeDataset(Dataset):
 class MoleculeSampler(Sampler):
     """A :class:`MoleculeSampler` samples data from a :class:`MoleculeDataset` for a :class:`MoleculeDataLoader`."""
 
-    def __init__(self,
-                 dataset: MoleculeDataset,
-                 class_balance: bool = False,
-                 shuffle: bool = False,
-                 seed: int = 0):
+    def __init__(
+        self,
+        dataset: MoleculeDataset,
+        class_balance: bool = False,
+        shuffle: bool = False,
+        seed: int = 0,
+    ):
         """
         :param class_balance: Whether to perform class balancing (i.e., use an equal number of positive
                               and negative molecules). Set shuffle to True in order to get a random
@@ -844,12 +973,19 @@ class MoleculeSampler(Sampler):
 
         if self.class_balance:
             indices = np.arange(len(dataset))
-            has_active = np.array([any(target == 1 for target in datapoint.targets) for datapoint in dataset])
+            has_active = np.array(
+                [
+                    any(target == 1 for target in datapoint.targets)
+                    for datapoint in dataset
+                ]
+            )
 
             self.positive_indices = indices[has_active].tolist()
             self.negative_indices = indices[~has_active].tolist()
 
-            self.length = 2 * min(len(self.positive_indices), len(self.negative_indices))
+            self.length = 2 * min(
+                len(self.positive_indices), len(self.negative_indices)
+            )
         else:
             self.positive_indices = self.negative_indices = None
 
@@ -862,7 +998,11 @@ class MoleculeSampler(Sampler):
                 self._random.shuffle(self.positive_indices)
                 self._random.shuffle(self.negative_indices)
 
-            indices = [index for pair in zip(self.positive_indices, self.negative_indices) for index in pair]
+            indices = [
+                index
+                for pair in zip(self.positive_indices, self.negative_indices)
+                for index in pair
+            ]
         else:
             indices = list(range(len(self.dataset)))
 
@@ -895,13 +1035,15 @@ def construct_molecule_batch(data: List[MoleculeDatapoint]) -> MoleculeDataset:
 class MoleculeDataLoader(DataLoader):
     """A :class:`MoleculeDataLoader` is a PyTorch :class:`DataLoader` for loading a :class:`MoleculeDataset`."""
 
-    def __init__(self,
-                 dataset: MoleculeDataset,
-                 batch_size: int = 50,
-                 num_workers: int = 8,
-                 class_balance: bool = False,
-                 shuffle: bool = False,
-                 seed: int = 0):
+    def __init__(
+        self,
+        dataset: MoleculeDataset,
+        batch_size: int = 50,
+        num_workers: int = 8,
+        class_balance: bool = False,
+        shuffle: bool = False,
+        seed: int = 0,
+    ):
         """
         :param dataset: The :class:`MoleculeDataset` containing the molecules to load.
         :param batch_size: Batch size.
@@ -923,14 +1065,14 @@ class MoleculeDataLoader(DataLoader):
         self._timeout = 0
         is_main_thread = threading.current_thread() is threading.main_thread()
         if not is_main_thread and self._num_workers > 0:
-            self._context = 'forkserver'  # In order to prevent a hanging
+            self._context = "forkserver"  # In order to prevent a hanging
             self._timeout = 3600  # Just for sure that the DataLoader won't hang
 
         self._sampler = MoleculeSampler(
             dataset=self._dataset,
             class_balance=self._class_balance,
             shuffle=self._shuffle,
-            seed=self._seed
+            seed=self._seed,
         )
 
         super(MoleculeDataLoader, self).__init__(
@@ -940,7 +1082,7 @@ class MoleculeDataLoader(DataLoader):
             num_workers=self._num_workers,
             collate_fn=construct_molecule_batch,
             multiprocessing_context=self._context,
-            timeout=self._timeout
+            timeout=self._timeout,
         )
 
     @property
@@ -951,7 +1093,9 @@ class MoleculeDataLoader(DataLoader):
         :return: A list of lists of floats (or None) containing the targets.
         """
         if self._class_balance or self._shuffle:
-            raise ValueError('Cannot safely extract targets when class balance or shuffle are enabled.')
+            raise ValueError(
+                "Cannot safely extract targets when class balance or shuffle are enabled."
+            )
 
         return [self._dataset[index].targets for index in self._sampler]
 
@@ -963,9 +1107,11 @@ class MoleculeDataLoader(DataLoader):
         :return: A list of lists of booleans (or None) containing the targets.
         """
         if self._class_balance or self._shuffle:
-            raise ValueError('Cannot safely extract targets when class balance or shuffle are enabled.')
-        
-        if not hasattr(self._dataset[0],'gt_targets'):
+            raise ValueError(
+                "Cannot safely extract targets when class balance or shuffle are enabled."
+            )
+
+        if not hasattr(self._dataset[0], "gt_targets"):
             return None
 
         return [self._dataset[index].gt_targets for index in self._sampler]
@@ -978,13 +1124,14 @@ class MoleculeDataLoader(DataLoader):
         :return: A list of lists of booleans (or None) containing the targets.
         """
         if self._class_balance or self._shuffle:
-            raise ValueError('Cannot safely extract targets when class balance or shuffle are enabled.')
+            raise ValueError(
+                "Cannot safely extract targets when class balance or shuffle are enabled."
+            )
 
-        if not hasattr(self._dataset[0],'lt_targets'):
+        if not hasattr(self._dataset[0], "lt_targets"):
             return None
 
         return [self._dataset[index].lt_targets for index in self._sampler]
-
 
     @property
     def iter_size(self) -> int:
@@ -995,8 +1142,14 @@ class MoleculeDataLoader(DataLoader):
         r"""Creates an iterator which returns :class:`MoleculeDataset`\ s"""
         return super(MoleculeDataLoader, self).__iter__()
 
-    
-def make_mols(smiles: List[str], reaction_list: List[bool], keep_h_list: List[bool], add_h_list: List[bool], keep_atom_map_list: List[bool]):
+
+def make_mols(
+    smiles: List[str],
+    reaction_list: List[bool],
+    keep_h_list: List[bool],
+    add_h_list: List[bool],
+    keep_atom_map_list: List[bool],
+):
     """
     Builds a list of RDKit molecules (or a list of tuples of molecules if reaction is True) for a list of smiles.
 
@@ -1008,10 +1161,22 @@ def make_mols(smiles: List[str], reaction_list: List[bool], keep_h_list: List[bo
     :return: List of RDKit molecules or list of tuple of molecules.
     """
     mol = []
-    for s, reaction, keep_h, add_h, keep_atom_map in zip(smiles, reaction_list, keep_h_list, add_h_list, keep_atom_map_list):
+    for s, reaction, keep_h, add_h, keep_atom_map in zip(
+        smiles, reaction_list, keep_h_list, add_h_list, keep_atom_map_list
+    ):
         if reaction:
-            mol.append(SMILES_TO_MOL[s] if s in SMILES_TO_MOL else (make_mol(s.split(">")[0], keep_h, add_h, keep_atom_map), make_mol(s.split(">")[-1], keep_h, add_h, keep_atom_map)))
+            mol.append(
+                SMILES_TO_MOL[s]
+                if s in SMILES_TO_MOL
+                else (
+                    make_mol(s.split(">")[0], keep_h, add_h, keep_atom_map),
+                    make_mol(s.split(">")[-1], keep_h, add_h, keep_atom_map),
+                )
+            )
         else:
-            mol.append(SMILES_TO_MOL[s] if s in SMILES_TO_MOL else make_mol(s, keep_h, add_h, keep_atom_map))
+            mol.append(
+                SMILES_TO_MOL[s]
+                if s in SMILES_TO_MOL
+                else make_mol(s, keep_h, add_h, keep_atom_map)
+            )
     return mol
-
