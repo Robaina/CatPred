@@ -1,3 +1,4 @@
+# Dockerfile
 FROM nvidia/cuda:11.7.1-cudnn8-runtime-ubuntu20.04
 
 # Avoid interactive dialog during package installation
@@ -45,9 +46,12 @@ RUN wget https://catpred.s3.amazonaws.com/production_models.tar.gz -q \
     && rm production_models.tar.gz processed_databases.tar.gz
 
 # Create input/output directories
-RUN mkdir -p /input /output
+RUN mkdir -p /input /output /results
 
-# Copy prediction script and entrypoint
+# Copy prediction script
+COPY catpred /app/catpred
 COPY demo_run.py /app/catpred/demo_run.py
+COPY entrypoint.sh /app/catpred/entrypoint.sh
+RUN chmod +x /app/catpred/entrypoint.sh
 
-ENTRYPOINT ["/bin/bash", "-c", "source /opt/conda/etc/profile.d/conda.sh && conda activate catpred && cd /app/catpred && python demo_run.py \"$@\""]
+ENTRYPOINT ["/app/catpred/entrypoint.sh"]
