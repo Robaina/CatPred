@@ -1,3 +1,12 @@
+# :warning: Fork changes :warning: :
+
+* Created a Dockerfile, entry point script and minor teaks to run tool as a docker container
+
+```
+cd CatPred
+docker build -t catpred:latest .
+```
+
 # CatPred: A comprehensive framework for deep learning in vitro enzyme kinetic parameters kcat, Km and Ki
 
 [![DOI](https://img.shields.io/badge/DOI-10.1101/2024.03.10.584340-blue)](https://www.biorxiv.org/content/10.1101/2024.03.10.584340v2)
