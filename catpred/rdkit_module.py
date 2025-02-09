@@ -1,4 +1,4 @@
-from catpred.rdkit_module import Chem
+from rdkit import Chem
 import numpy as np
 
 

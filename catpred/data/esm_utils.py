@@ -20,7 +20,8 @@ def to_device(t, *, device):
 def cast_tuple(t):
     return (t,) if not isinstance(t, tuple) else t
 
-PROTEIN_EMBED_USE_CPU = os.getenv('PROTEIN_EMBED_USE_CPU', None) is not None
+PROTEIN_EMBED_USE_CPU = os.getenv('PROTEIN_EMBED_USE_CPU', None)
+PROTEIN_EMBED_USE_CPU = False if PROTEIN_EMBED_USE_CPU == '0' else True
 
 if PROTEIN_EMBED_USE_CPU:
     print('calculating protein embed only on cpu')

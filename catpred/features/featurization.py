@@ -2,7 +2,7 @@ from typing import List, Tuple, Union
 from itertools import zip_longest
 import logging
 
-from catpred.rdkit_module import Chem
+from rdkit import Chem
 import torch
 import numpy as np
 

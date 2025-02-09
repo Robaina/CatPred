@@ -1,7 +1,7 @@
 from typing import Callable, List, Union
 
 import numpy as np
-from catpred.rdkit_module import Chem, DataStructs
+from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem
 
 Molecule = Union[str, Chem.Mol]
@@ -91,8 +91,6 @@ def morgan_binary_features_generator(
 
 #     return features
 
-import ipdb
-
 
 @register_features_generator("morgan_diff_fp")
 def morgan_difference_features_generator(rxn: Reaction) -> np.ndarray:
@@ -102,7 +100,6 @@ def morgan_difference_features_generator(rxn: Reaction) -> np.ndarray:
     :param rxn: A reaction (i.e., either a SMILES or an RDKit rxn).
     :return: A 1D numpy array containing the difference-based Morgan fingerprint.
     """
-    # ipdb.set_trace()
     rxn = Chem.rdChemReactions.ReactionFromSmarts(rxn) if type(rxn) == str else rxn
     params = Chem.rdChemReactions.ReactionFingerprintParams()
     params.fpType = Chem.rdChemReactions.FingerprintType.MorganFP

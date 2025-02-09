@@ -1,7 +1,5 @@
-# Dockerfile
 FROM nvidia/cuda:11.7.1-cudnn8-runtime-ubuntu20.04
 
-# Avoid interactive dialog during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies
@@ -9,34 +7,28 @@ RUN apt-get update && apt-get install -y \
     wget \
     git \
     python3-pip \
+    python3-dev \
     libxrender1 \
     libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Miniconda
-RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh \
-    && bash /tmp/miniconda.sh -b -p /opt/conda \
-    && rm /tmp/miniconda.sh
-ENV PATH="/opt/conda/bin:${PATH}"
-
-# Optional: Install mamba for faster dependency resolution
-RUN conda install -c conda-forge mamba -y
-
-# Clone CatPred repository
-WORKDIR /app
-RUN git clone https://github.com/maranasgroup/catpred.git
+# Set up working directory
 WORKDIR /app/catpred
 
-# Create conda environment and install dependencies
-RUN mamba env create -f environment.yml || conda env create -f environment.yml \
-    && conda init bash \
-    && echo "conda activate catpred" >> ~/.bashrc
+# Copy application files and set permissions
+COPY . .
 
-SHELL ["/bin/bash", "--login", "-c"]
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
+    
+# Build and install wheel
+RUN pip install wheel && \
+    python3 setup.py bdist_wheel && \
+    pip install dist/*.whl
 
-# Install additional Python packages
-RUN pip install -e . && \
-    pip install ipdb fair-esm rotary_embedding_torch==0.6.5 egnn_pytorch -q
+# Set proper permissions
+RUN chmod -R 755 /app/catpred && \
+    chown -R root:root /app/catpred
 
 # Download and extract pre-trained models and databases
 RUN wget https://catpred.s3.amazonaws.com/production_models.tar.gz -q \
@@ -44,14 +36,18 @@ RUN wget https://catpred.s3.amazonaws.com/production_models.tar.gz -q \
     && tar -xzf production_models.tar.gz \
     && tar -xzf processed_databases.tar.gz \
     && rm production_models.tar.gz processed_databases.tar.gz
+    
+# Set permissions for models and databases
+RUN chmod -R 755 /app/catpred/production_models && \
+    chmod -R 755 /app/catpred/processed_databases
+    
+# Set torch cache dir for esm weitghts
+RUN mkdir -p /root/.cache/torch/hub/checkpoints && \
+    chmod -R 777 /root/.cache
 
-# Create input/output directories
-RUN mkdir -p /input /output /results
+# Create input/output directories with proper permissions
+RUN mkdir -p /input /output && \
+    chmod -R 777 /input && \
+    chmod -R 777 /output
 
-# Copy prediction script
-COPY catpred /app/catpred
-COPY demo_run.py /app/catpred/demo_run.py
-COPY entrypoint.sh /app/catpred/entrypoint.sh
-RUN chmod +x /app/catpred/entrypoint.sh
-
-ENTRYPOINT ["/app/catpred/entrypoint.sh"]
+ENTRYPOINT ["python3", "predict_kinetics.py"]
