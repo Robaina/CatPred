@@ -105,23 +105,28 @@ def create_prediction_files(parameter, input_file_path):
     
     return input_file_new_path, records_file, output_file
 
-def run_prediction(parameter, input_file, records_file, output_file, use_gpu):
+def run_prediction(parameter, input_file, records_file, output_file, use_gpu, quiet=False):
     """Run the prediction process."""
     checkpoint_dir = f'/app/catpred/production_models/{parameter}/'
     
     # Create PDB records
-    subprocess.run([
+    create_pdb_command = [
         'python3', './scripts/create_pdbrecords.py',
         '--data_file', input_file,
         '--out_file', records_file
-    ], check=True)
+    ]
+    
+    if quiet:
+        subprocess.run(create_pdb_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    else:
+        subprocess.run(create_pdb_command, check=True)
     
     # Set GPU/CPU environment variable
     env = os.environ.copy()
     env['PROTEIN_EMBED_USE_CPU'] = '0' if use_gpu else '1'
 
     # Run prediction
-    subprocess.run([
+    predict_command = [
         'python3', './predict.py',
         '--test_path', input_file,
         '--preds_path', output_file,
@@ -130,7 +135,12 @@ def run_prediction(parameter, input_file, records_file, output_file, use_gpu):
         '--smiles_column', 'SMILES',
         '--individual_ensemble_predictions',
         '--protein_records_path', records_file
-    ], env=env, check=True)
+    ]
+    
+    if quiet:
+        subprocess.run(predict_command, env=env, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    else:
+        subprocess.run(predict_command, env=env, check=True)
     
     return output_file
 
@@ -193,11 +203,14 @@ def main(args):
     if input_file is None:
         return
 
-    print('Running predictions (this will take a while)...\n')
+    if args.quiet:
+        print('Running predictions in quiet mode (suppressing model loading messages)...\n')
+    else:
+        print('Running predictions (this will take a while)...\n')
     
     try:
         # Run prediction
-        output_file = run_prediction(args.parameter, input_file, records_file, output_file, args.use_gpu)
+        output_file = run_prediction(args.parameter, input_file, records_file, output_file, args.use_gpu, args.quiet)
         
         # Process and save results
         process_predictions(args.parameter, output_file)
@@ -219,6 +232,8 @@ if __name__ == "__main__":
                       help="Use GPU for prediction (default is CPU)")
     parser.add_argument("--weights_dir", type=str,
                       help="Directory containing ESM weight files (optional)")
+    parser.add_argument("--quiet", action="store_true",
+                      help="Suppress model loading and other verbose output messages")
 
     args = parser.parse_args()
     args.parameter = args.parameter.lower()
